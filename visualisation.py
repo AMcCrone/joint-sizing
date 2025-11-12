@@ -169,26 +169,37 @@ def create_facade_figure(span_width, floor_height, u_max, frame_type, support_ty
             span_width, u_max, frame_type, num_points
         )
         x_offset = span_num * span_width
-        
-        # Deflected edge (solid thick line)
+
+        # bring coordinates into global x-space
         x_global = x_coords + x_offset
         y_global = y_deflection + deflected_edge_base
-        
-        # Create thick slab edge by making a filled polygon
+
+        # --- Add flat outer extension on the left for span 0 and on the right for span 1 ---
+        # keep the deflection value at the nearest edge for the flat extension
+        if span_num == 0:
+            # prepend a flat point at x = -extension
+            x_global = np.concatenate((np.array([-extension]), x_global))
+            y_global = np.concatenate((np.array([y_global[0]]), y_global))
+        if span_num == 1:
+            # append a flat point at x = total_span + extension
+            x_global = np.concatenate((x_global, np.array([total_span + extension])))
+            y_global = np.concatenate((y_global, np.array([y_global[-1]])))
+
+        # Create thick slab edge by making a filled polygon (top then bottom reversed)
         x_edge = np.concatenate([x_global, x_global[::-1]])
         y_edge_top = y_global + slab_thickness/2
         y_edge_bottom = y_global - slab_thickness/2
         y_edge = np.concatenate([y_edge_top, y_edge_bottom[::-1]])
-        
+
         fig.add_trace(go.Scatter(
             x=x_edge,
             y=y_edge,
             fill='toself',
             fillcolor=frame_color,
             line=dict(color=frame_color, width=0),
-            mode='lines',
             showlegend=False,
-            hoverinfo='skip'
+            hoverinfo='skip',
+            mode='lines'
         ))
     
     # Create straight slab edges (solid thick line)

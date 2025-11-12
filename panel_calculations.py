@@ -48,102 +48,74 @@ def calculate_panel_positions(total_span, num_panels, joint_width=5):
     return panels
 
 
-def calculate_panel_geometry(x_start, x_end, span_number, single_span, 
-                            panel_height, u_max, frame_type, support_type):
+def calculate_panel_geometry(x_start, x_end, span_number, single_span,
+                             panel_height, u_max, frame_type, support_type):
     """
-    Calculate the geometry of a single panel including corners and rotation.
-    Panel maintains rectangular shape (90-degree corners) by rotating about support edge.
-    
-    Parameters:
-    -----------
-    x_start : float
-        Starting x position of panel (in mm)
-    x_end : float
-        Ending x position of panel (in mm)
-    span_number : int
-        Which span (0 or 1)
-    single_span : float
-        Length of a single span (in mm)
-    panel_height : float
-        Height of the panel (in mm) - typically same as floor height
-    u_max : float
-        Maximum deflection (in mm)
-    frame_type : str
-        'concrete' or 'steel'
-    support_type : str
-        'top_hung' or 'bottom_supported'
-    
-    Returns:
-    --------
-    dict
-        Dictionary containing panel corner coordinates and rotation angle
+    Calculate rectangular panel corners by using the support edge tangent
+    and a perpendicular offset (unit normal). This preserves 90° corners.
     """
     # Convert global x to local x within the span
     span_offset = span_number * single_span
     x_local_start = x_start - span_offset
     x_local_end = x_end - span_offset
-    
-    # Get deflections at panel edges
+
+    # Get deflections at panel edges (vertical values)
     deflection_start = get_deflection_at_position(x_local_start, u_max, single_span, frame_type)
     deflection_end = get_deflection_at_position(x_local_end, u_max, single_span, frame_type)
-    
-    # Calculate panel width
-    panel_width = x_end - x_start
-    
-    # Calculate differential deflection and rotation angle
-    deflection_diff = deflection_end - deflection_start
-    
+
+    # Panel horizontal projection (adjacent)
+    dx = (x_end - x_start)
+    dy = (deflection_end - deflection_start)  # vertical difference along the support edge
+
+    # Edge length (actual length of the support edge across the panel)
+    edge_length = np.hypot(dx, dy)
+    if edge_length == 0:
+        # Degenerate panel — return a vertical rectangle of zero width
+        bottom_left = bottom_right = top_left = top_right = (x_start, deflection_start)
+        rotation_angle = 0.0
+        return {
+            'top_left': top_left, 'top_right': top_right,
+            'bottom_left': bottom_left, 'bottom_right': bottom_right,
+            'rotation_angle': rotation_angle,
+            'rotation_degrees': 0.0,
+            'deflection_start': deflection_start,
+            'deflection_end': deflection_end,
+            'deflection_diff': dy
+        }
+
+    # Unit tangent vector along the deflected support edge (from left -> right)
+    tx = dx / edge_length
+    ty = dy / edge_length
+
+    # Unit normal (pointing "up" relative to the edge). Choose convention:
+    # normal = (-ty, tx) produces a normal rotated +90° from the tangent.
+    nx = -ty
+    ny = tx
+
+    # If top-hung, the deflected edge is the top; otherwise it's the bottom.
     if support_type == 'bottom_supported':
-        # For bottom supported: rotation based on bottom edge differential
-        # Bottom edge deflects, panel rotates from bottom
-        rotation_angle = np.arcsin(-deflection_diff / panel_width)
-        
-        # Bottom corners are on the deflected edge
+        # Bottom edge coordinates (on deflected support)
         bottom_left = (x_start, deflection_start)
         bottom_right = (x_end, deflection_end)
-        
-        # Panel maintains rectangular shape by rotating
-        # Calculate rotation matrix components
-        cos_theta = np.cos(rotation_angle)
-        sin_theta = np.sin(rotation_angle)
-        
-        # Top corners: offset by panel_height perpendicular to bottom edge
-        # In rotated coordinate system, this is just +H in y-direction
-        # Then rotate back to global coordinates
-        top_left = (
-            bottom_left[0] - panel_height * sin_theta,
-            bottom_left[1] + panel_height * cos_theta
-        )
-        top_right = (
-            bottom_right[0] - panel_height * sin_theta,
-            bottom_right[1] + panel_height * cos_theta
-        )
-        
-    else:  # top_hung
-        # For top hung: rotation based on top edge differential
-        # Top edge deflects, panel rotates from top
-        rotation_angle = np.arcsin(-deflection_diff / panel_width)
-        
-        # Top corners are on the deflected edge
+
+        # Offset top edge by +panel_height along the unit normal
+        top_left = (bottom_left[0] + nx * panel_height, bottom_left[1] + ny * panel_height)
+        top_right = (bottom_right[0] + nx * panel_height, bottom_right[1] + ny * panel_height)
+
+        # rotation angle of the support edge relative to horizontal:
+        rotation_angle = np.arctan2(dy, dx)
+
+    else:  # 'top_hung'
+        # Top edge coordinates (on deflected support)
         top_left = (x_start, deflection_start)
         top_right = (x_end, deflection_end)
-        
-        # Calculate rotation matrix components
-        cos_theta = np.cos(rotation_angle)
-        sin_theta = np.sin(rotation_angle)
-        
-        # Bottom corners: offset by panel_height perpendicular to top edge
-        # In rotated coordinate system, this is just -H in y-direction
-        # Then rotate back to global coordinates
-        bottom_left = (
-            top_left[0] + panel_height * sin_theta,
-            top_left[1] - panel_height * cos_theta
-        )
-        bottom_right = (
-            top_right[0] + panel_height * sin_theta,
-            top_right[1] - panel_height * cos_theta
-        )
-    
+
+        # Offset bottom edge by -panel_height along the unit normal (downwards)
+        bottom_left = (top_left[0] - nx * panel_height, top_left[1] - ny * panel_height)
+        bottom_right = (top_right[0] - nx * panel_height, top_right[1] - ny * panel_height)
+
+        rotation_angle = np.arctan2(dy, dx)
+
     return {
         'top_left': top_left,
         'top_right': top_right,
@@ -153,7 +125,7 @@ def calculate_panel_geometry(x_start, x_end, span_number, single_span,
         'rotation_degrees': np.degrees(rotation_angle),
         'deflection_start': deflection_start,
         'deflection_end': deflection_end,
-        'deflection_diff': deflection_diff
+        'deflection_diff': dy
     }
 
 

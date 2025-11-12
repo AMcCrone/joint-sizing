@@ -117,7 +117,7 @@ fig = create_facade_figure(
 )
 
 # Display the plot
-st.plotly_chart(fig, use_container_width=True)
+st.plotly_chart(fig, width="stretch")
 
 # Display calculations
 st.header("System Information")
@@ -163,7 +163,7 @@ for i, geom in enumerate(panel_geometries):
     })
 
 df = pd.DataFrame(data)
-st.dataframe(df, use_container_width=True, hide_index=True)
+st.dataframe(df, width="stretch", hide_index=True)
 
 # Panel corner coordinates
 with st.expander("Panel Corner Coordinates"):
@@ -178,7 +178,7 @@ with st.expander("Panel Corner Coordinates"):
         })
     
     corner_df = pd.DataFrame(corner_data)
-    st.dataframe(corner_df, use_container_width=True, hide_index=True)
+    st.dataframe(corner_df, width="stretch", hide_index=True)
 
 # Formula information
 with st.expander("Deflection Formulas"):

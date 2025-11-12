@@ -7,7 +7,7 @@ import streamlit as st
 import pandas as pd
 from deflection_calculations import generate_slab_edge_coordinates
 from panel_calculations import calculate_panel_positions, get_all_panel_geometries
-from visualization import create_facade_figure
+from visualisation import create_facade_figure
 
 
 # Page configuration

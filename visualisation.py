@@ -15,10 +15,10 @@ def get_frame_color(frame_type):
 
 def create_dimension_arrow(x1, y1, x2, y2, text, offset=200):
     """
-    Create dimension arrow with text.
-    
-    Parameters:
-    -----------
+    Create a clean, grey dimension arrow with consistent line weights.
+
+    Parameters
+    ----------
     x1, y1 : float
         Start coordinates
     x2, y2 : float
@@ -26,78 +26,66 @@ def create_dimension_arrow(x1, y1, x2, y2, text, offset=200):
     text : str
         Dimension text
     offset : float
-        Offset from the measured line
-    
-    Returns:
-    --------
+        Offset distance from the measured line (in same units)
+
+    Returns
+    -------
     list
-        List of plotly traces for the dimension
+        List of Plotly Scatter traces for the dimension lines
+    tuple
+        (x_mid, y_mid, dx, dy) for annotation placement
     """
     traces = []
-    
-    # Calculate perpendicular offset direction
+
+    # Style parameters
+    line_color = "#666"     # sleek medium grey
+    line_width = 1.5        # consistent width for all parts
+    arrow_size = abs(offset) * 0.3  # size of extension "tails"
+
+    # Compute direction vector
     dx = x2 - x1
     dy = y2 - y1
-    length = np.sqrt(dx**2 + dy**2)
-    
+    length = np.hypot(dx, dy)
     if length == 0:
-        return traces
-    
-    # Unit perpendicular vector
-    if abs(dx) < 0.1:  # Vertical line
-        offset_x = offset
-        offset_y = 0
-    elif abs(dy) < 0.1:  # Horizontal line
-        offset_x = 0
-        offset_y = -offset
-    else:
-        perp_x = -dy / length
-        perp_y = dx / length
-        offset_x = perp_x * offset
-        offset_y = perp_y * offset
-    
-    # Offset start and end points
-    x1_off = x1 + offset_x
-    y1_off = y1 + offset_y
-    x2_off = x2 + offset_x
-    y2_off = y2 + offset_y
-    
-    # Main dimension line
+        return traces, (x1, y1, 0, 0)
+
+    # Unit direction and perpendicular
+    ux, uy = dx / length, dy / length
+    px, py = -uy, ux  # perpendicular
+
+    # Offset dimension line
+    x1_off = x1 + px * offset
+    y1_off = y1 + py * offset
+    x2_off = x2 + px * offset
+    y2_off = y2 + py * offset
+
+    # --- Main dimension line ---
     traces.append(go.Scatter(
         x=[x1_off, x2_off],
         y=[y1_off, y2_off],
-        mode='lines',
-        line=dict(color='black', width=2),
+        mode="lines",
+        line=dict(color=line_color, width=line_width),
         showlegend=False,
-        hoverinfo='skip'
+        hoverinfo="skip"
     ))
-    
-    # Extension lines
-    extension_length = abs(offset) * 0.3
-    traces.append(go.Scatter(
-        x=[x1, x1_off + (offset_x * 0.2)],
-        y=[y1, y1_off + (offset_y * 0.2)],
-        mode='lines',
-        line=dict(color='black', width=1),
-        showlegend=False,
-        hoverinfo='skip'
-    ))
-    
-    traces.append(go.Scatter(
-        x=[x2, x2_off + (offset_x * 0.2)],
-        y=[y2, y2_off + (offset_y * 0.2)],
-        mode='lines',
-        line=dict(color='black', width=1),
-        showlegend=False,
-        hoverinfo='skip'
-    ))
-    
-    # Arrowheads using annotations
+
+    # --- Extension lines ---
+    for (xa, ya, xa_off, ya_off) in [(x1, y1, x1_off, y1_off),
+                                     (x2, y2, x2_off, y2_off)]:
+        traces.append(go.Scatter(
+            x=[xa, xa_off + px * 0.1 * offset],
+            y=[ya, ya_off + py * 0.1 * offset],
+            mode="lines",
+            line=dict(color=line_color, width=line_width),
+            showlegend=False,
+            hoverinfo="skip"
+        ))
+
+    # --- Return midpoint for text annotation ---
     mid_x = (x1_off + x2_off) / 2
     mid_y = (y1_off + y2_off) / 2
-    
-    return traces, (mid_x, mid_y, x2_off - x1_off, y2_off - y1_off)
 
+    return traces, (mid_x, mid_y, x2_off - x1_off, y2_off - y1_off)
 
 def create_facade_figure(span_width, floor_height, u_max, frame_type, support_type,
                          panel_geometries, column_thickness=150, slab_thickness=300):

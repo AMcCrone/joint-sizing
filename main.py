@@ -5,6 +5,7 @@ Main application file.
 
 import streamlit as st
 import pandas as pd
+from auth import authenticate_user
 from deflection_calculations import generate_slab_edge_coordinates
 from panel_calculations import calculate_panel_positions, get_all_panel_geometries
 from visualisation import create_facade_figure
@@ -16,6 +17,8 @@ st.set_page_config(
     page_icon="🏢",
     layout="wide"
 )
+
+authenticate_user()
 
 st.title("Facade Panel Movement Joint Calculator")
 st.markdown("Calculate and visualize facade panel movement joints with slab edge deflection")

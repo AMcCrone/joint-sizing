@@ -1,3 +1,4 @@
+# visulatisation.py
 """
 Visualisation functions for the facade panel movement joint calculator.
 Creates Plotly figures with proper dimensions and annotations.

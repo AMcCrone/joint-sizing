@@ -1,3 +1,4 @@
+# panel_calculations.py
 """
 Panel positioning and geometry calculations for facade panels.
 Handles panel division, corner positions, and rotations.

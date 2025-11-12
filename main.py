@@ -102,25 +102,60 @@ slab_thickness = st.sidebar.number_input(
     step=10
 )
 
+st.sidebar.markdown("---")
+st.sidebar.subheader("Visualization Settings")
+
+deflection_magnification = st.sidebar.slider(
+    "Deflection Magnification",
+    min_value=1.0,
+    max_value=50.0,
+    value=1.0,
+    step=0.5,
+    help="Multiply deflections for better visibility (does not affect actual calculations)"
+)
+
 # Calculate total span
 total_span = span_width * 2
 
 # Calculate panel positions and geometries
 panels = calculate_panel_positions(total_span, num_panels, joint_width)
-
 panel_geometries = get_all_panel_geometries(
-    panels, span_width, slab_thickness, max_deflection, 
+    panels, span_width, floor_height, max_deflection, 
     frame_type, support_type
 )
 
 # Create visualization
 fig = create_facade_figure(
     span_width, floor_height, max_deflection, frame_type, support_type,
-    panel_geometries, column_thickness, slab_thickness
+    panel_geometries, column_thickness, slab_thickness, deflection_magnification
 )
 
 # Display the plot
-st.plotly_chart(fig, width="stretch")
+st.plotly_chart(fig, use_container_width=True)
+
+# Display panel information
+st.subheader("Panel Details")
+st.markdown(f"**Total number of panels:** {num_panels}")
+st.markdown(f"**Deflection magnification:** {deflection_magnification}x")
+
+if deflection_magnification > 1.0:
+    st.info(f"⚠️ Deflections are magnified by {deflection_magnification}x for visualization. Actual deflection values shown below.")
+
+# Create a table of panel rotations
+import pandas as pd
+
+panel_data = []
+for i, geom in enumerate(panel_geometries):
+    panel_data.append({
+        'Panel': i + 1,
+        'Span': geom['span_number'] + 1,
+        'Width (mm)': f"{geom['x_end'] - geom['x_start']:.1f}",
+        'Rotation (degrees)': f"{geom['rotation_degrees']:.4f}",
+        'Deflection Differential (mm)': f"{geom['deflection_diff']:.3f}"
+    })
+
+df = pd.DataFrame(panel_data)
+st.dataframe(df, use_container_width=True, hide_index=True)
 
 # Display calculations
 st.header("System Information")

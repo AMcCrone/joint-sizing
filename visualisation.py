@@ -158,6 +158,7 @@ def create_facade_figure(span_width, floor_height, u_max, frame_type, support_ty
             fill='toself',
             fillcolor=frame_color,
             line=dict(color=frame_color, width=0),
+            mode='lines',
             showlegend=False,
             hoverinfo='skip'
         ))
@@ -186,6 +187,7 @@ def create_facade_figure(span_width, floor_height, u_max, frame_type, support_ty
             fill='toself',
             fillcolor=frame_color,
             line=dict(color=frame_color, width=0),
+            mode='lines',
             showlegend=False,
             hoverinfo='skip'
         ))
@@ -201,6 +203,7 @@ def create_facade_figure(span_width, floor_height, u_max, frame_type, support_ty
         fill='toself',
         fillcolor=frame_color,
         line=dict(color=frame_color, width=0),
+        mode='lines',
         showlegend=False,
         hoverinfo='skip'
     ))
@@ -225,6 +228,7 @@ def create_facade_figure(span_width, floor_height, u_max, frame_type, support_ty
             fill='toself',
             fillcolor='rgba(173, 216, 230, 0.5)',
             line=dict(color='steelblue', width=2),
+            mode='lines',
             showlegend=False,
             hoverinfo='skip'
         ))

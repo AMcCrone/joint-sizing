@@ -283,7 +283,8 @@ def create_facade_figure(span_width, floor_height, u_max, frame_type, support_ty
     fig.update_layout(
         showlegend=False,
         hovermode=False,
-        height=700,
+        height=400
+        # width=1200, 
         plot_bgcolor='white',
         paper_bgcolor='white',
         xaxis=dict(

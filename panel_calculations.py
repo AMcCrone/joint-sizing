@@ -1,7 +1,7 @@
 # panel_calculations.py
 """
 Panel positioning and geometry calculations for facade panels.
-Handles panel division, corner positions, and rotations.
+Handles panel division, corner positions, and rotations while maintaining rectangular geometry.
 """
 
 import numpy as np
@@ -49,9 +49,10 @@ def calculate_panel_positions(total_span, num_panels, joint_width=5):
 
 
 def calculate_panel_geometry(x_start, x_end, span_number, single_span, 
-                            slab_thickness, u_max, frame_type, support_type):
+                            panel_height, u_max, frame_type, support_type):
     """
     Calculate the geometry of a single panel including corners and rotation.
+    Panel maintains rectangular shape (90-degree corners) by rotating about support edge.
     
     Parameters:
     -----------
@@ -63,8 +64,8 @@ def calculate_panel_geometry(x_start, x_end, span_number, single_span,
         Which span (0 or 1)
     single_span : float
         Length of a single span (in mm)
-    slab_thickness : float
-        Thickness of the slab (in mm)
+    panel_height : float
+        Height of the panel (in mm) - typically same as floor height
     u_max : float
         Maximum deflection (in mm)
     frame_type : str
@@ -82,40 +83,66 @@ def calculate_panel_geometry(x_start, x_end, span_number, single_span,
     x_local_start = x_start - span_offset
     x_local_end = x_end - span_offset
     
-    # Get deflections at panel support points
+    # Get deflections at panel edges
     deflection_start = get_deflection_at_position(x_local_start, u_max, single_span, frame_type)
     deflection_end = get_deflection_at_position(x_local_end, u_max, single_span, frame_type)
     
-    # Calculate rotation angle (in radians)
+    # Calculate panel width
     panel_width = x_end - x_start
-    rotation_angle = np.arctan2(deflection_end - deflection_start, panel_width)
     
-    # Calculate panel corners based on support type
-    if support_type == 'top_hung':
-        # Top edge follows deflected shape, bottom edge is offset by slab thickness
-        # Top corners (support points on deflected edge)
-        top_left = (x_start, deflection_start)
-        top_right = (x_end, deflection_end)
+    # Calculate differential deflection and rotation angle
+    deflection_diff = deflection_end - deflection_start
+    
+    if support_type == 'bottom_supported':
+        # For bottom supported: rotation based on bottom edge differential
+        # Bottom edge deflects, panel rotates from bottom
+        rotation_angle = np.arcsin(-deflection_diff / panel_width)
         
-        # Bottom corners - offset perpendicular to top edge by slab thickness
-        dx = -slab_thickness * np.sin(rotation_angle)
-        dy = slab_thickness * np.cos(rotation_angle)
-        
-        bottom_left = (top_left[0] + dx, top_left[1] + dy)
-        bottom_right = (top_right[0] + dx, top_right[1] + dy)
-        
-    else:  # bottom_supported
-        # Bottom edge follows deflected shape, top edge is offset by slab thickness
-        # Bottom corners (support points on deflected edge)
+        # Bottom corners are on the deflected edge
         bottom_left = (x_start, deflection_start)
         bottom_right = (x_end, deflection_end)
         
-        # Top corners - offset perpendicular to bottom edge by slab thickness
-        dx = -slab_thickness * np.sin(rotation_angle)
-        dy = -slab_thickness * np.cos(rotation_angle)
+        # Panel maintains rectangular shape by rotating
+        # Calculate rotation matrix components
+        cos_theta = np.cos(rotation_angle)
+        sin_theta = np.sin(rotation_angle)
         
-        top_left = (bottom_left[0] + dx, bottom_left[1] + dy)
-        top_right = (bottom_right[0] + dx, bottom_right[1] + dy)
+        # Top corners: offset by panel_height perpendicular to bottom edge
+        # In rotated coordinate system, this is just +H in y-direction
+        # Then rotate back to global coordinates
+        top_left = (
+            bottom_left[0] - panel_height * sin_theta,
+            bottom_left[1] + panel_height * cos_theta
+        )
+        top_right = (
+            bottom_right[0] - panel_height * sin_theta,
+            bottom_right[1] + panel_height * cos_theta
+        )
+        
+    else:  # top_hung
+        # For top hung: rotation based on top edge differential
+        # Top edge deflects, panel rotates from top
+        rotation_angle = np.arcsin(-deflection_diff / panel_width)
+        
+        # Top corners are on the deflected edge
+        top_left = (x_start, deflection_start)
+        top_right = (x_end, deflection_end)
+        
+        # Calculate rotation matrix components
+        cos_theta = np.cos(rotation_angle)
+        sin_theta = np.sin(rotation_angle)
+        
+        # Bottom corners: offset by panel_height perpendicular to top edge
+        # In rotated coordinate system, this is just -H in y-direction
+        # Then rotate back to global coordinates
+        bottom_left = (
+            top_left[0] + panel_height * sin_theta,
+            top_left[1] - panel_height * cos_theta
+        )
+        bottom_right = (
+            top_right[0] + panel_height * sin_theta,
+            top_right[1] - panel_height * cos_theta
+        )
     
     return {
         'top_left': top_left,
@@ -125,11 +152,12 @@ def calculate_panel_geometry(x_start, x_end, span_number, single_span,
         'rotation_angle': rotation_angle,
         'rotation_degrees': np.degrees(rotation_angle),
         'deflection_start': deflection_start,
-        'deflection_end': deflection_end
+        'deflection_end': deflection_end,
+        'deflection_diff': deflection_diff
     }
 
 
-def get_all_panel_geometries(panels, single_span, slab_thickness, u_max, 
+def get_all_panel_geometries(panels, single_span, panel_height, u_max, 
                             frame_type, support_type):
     """
     Calculate geometries for all panels.
@@ -140,8 +168,8 @@ def get_all_panel_geometries(panels, single_span, slab_thickness, u_max,
         List of (x_start, x_end, span_number) for each panel
     single_span : float
         Length of a single span (in mm)
-    slab_thickness : float
-        Thickness of the slab (in mm)
+    panel_height : float
+        Height of the panel (in mm)
     u_max : float
         Maximum deflection (in mm)
     frame_type : str
@@ -159,7 +187,7 @@ def get_all_panel_geometries(panels, single_span, slab_thickness, u_max,
     for x_start, x_end, span_number in panels:
         geometry = calculate_panel_geometry(
             x_start, x_end, span_number, single_span,
-            slab_thickness, u_max, frame_type, support_type
+            panel_height, u_max, frame_type, support_type
         )
         geometry['x_start'] = x_start
         geometry['x_end'] = x_end

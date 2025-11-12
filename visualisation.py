@@ -1,4 +1,4 @@
-# visulatisation.py
+# visualisation.py
 """
 Visualisation functions for the facade panel movement joint calculator.
 Creates Plotly figures with proper dimensions and annotations.
@@ -42,7 +42,7 @@ def create_dimension_arrow(x1, y1, x2, y2, text, offset=200):
     length = np.sqrt(dx**2 + dy**2)
     
     if length == 0:
-        return traces
+        return traces, None
     
     # Unit perpendicular vector
     if abs(dx) < 0.1:  # Vertical line
@@ -99,8 +99,10 @@ def create_dimension_arrow(x1, y1, x2, y2, text, offset=200):
     
     return traces, (mid_x, mid_y, x2_off - x1_off, y2_off - y1_off)
 
+
 def create_facade_figure(span_width, floor_height, u_max, frame_type, support_type,
-                         panel_geometries, column_thickness=150, slab_thickness=300):
+                         panel_geometries, column_thickness=150, slab_thickness=300,
+                         deflection_magnification=1.0):
     """
     Create the main facade visualization figure.
     
@@ -122,6 +124,8 @@ def create_facade_figure(span_width, floor_height, u_max, frame_type, support_ty
         Thickness of columns (in mm)
     slab_thickness : float
         Thickness of slab edges (in mm)
+    deflection_magnification : float
+        Magnification factor for deflections (default: 1.0)
     
     Returns:
     --------
@@ -134,6 +138,9 @@ def create_facade_figure(span_width, floor_height, u_max, frame_type, support_ty
     
     # Extension beyond bounds
     extension = span_width * 0.1
+    
+    # Apply magnification to deflections for visualization
+    u_max_viz = u_max * deflection_magnification
     
     # Calculate vertical positions based on support type
     if support_type == 'top_hung':
@@ -167,7 +174,7 @@ def create_facade_figure(span_width, floor_height, u_max, frame_type, support_ty
     num_points = 401
     for span_num in range(2):
         x_coords, y_deflection = generate_slab_edge_coordinates(
-            span_width, u_max, frame_type, num_points
+            span_width, u_max_viz, frame_type, num_points
         )
         x_offset = span_num * span_width
 
@@ -219,23 +226,54 @@ def create_facade_figure(span_width, floor_height, u_max, frame_type, support_ty
         hoverinfo='skip'
     ))
     
-    # Add panels
+    # Add panels with magnified deflections
     for i, geom in enumerate(panel_geometries):
+        # Apply magnification to the deflection components
         tl = geom['top_left']
         tr = geom['top_right']
         br = geom['bottom_right']
         bl = geom['bottom_left']
         
-        # Add vertical offset based on support type
+        # Magnify the y-deflections (relative to 0) in the geometry
         if support_type == 'top_hung':
+            # Top edge is deflected
+            tl_mag = (tl[0], tl[1] * deflection_magnification)
+            tr_mag = (tr[0], tr[1] * deflection_magnification)
+            # Bottom corners need to be recalculated based on magnified deflections
+            rotation_angle_mag = np.arcsin(-(tr[1] - tl[1]) * deflection_magnification / (tr[0] - tl[0]))
+            cos_theta = np.cos(rotation_angle_mag)
+            sin_theta = np.sin(rotation_angle_mag)
+            bl_mag = (
+                tl_mag[0] + floor_height * sin_theta,
+                tl_mag[1] - floor_height * cos_theta
+            )
+            br_mag = (
+                tr_mag[0] + floor_height * sin_theta,
+                tr_mag[1] - floor_height * cos_theta
+            )
             y_offset = deflected_edge_base
-        else:
+        else:  # bottom_supported
+            # Bottom edge is deflected
+            bl_mag = (bl[0], bl[1] * deflection_magnification)
+            br_mag = (br[0], br[1] * deflection_magnification)
+            # Top corners need to be recalculated based on magnified deflections
+            rotation_angle_mag = np.arcsin(-(br[1] - bl[1]) * deflection_magnification / (br[0] - bl[0]))
+            cos_theta = np.cos(rotation_angle_mag)
+            sin_theta = np.sin(rotation_angle_mag)
+            tl_mag = (
+                bl_mag[0] - floor_height * sin_theta,
+                bl_mag[1] + floor_height * cos_theta
+            )
+            tr_mag = (
+                br_mag[0] - floor_height * sin_theta,
+                br_mag[1] + floor_height * cos_theta
+            )
             y_offset = deflected_edge_base
         
         fig.add_trace(go.Scatter(
-            x=[tl[0], tr[0], br[0], bl[0], tl[0]],
-            y=[tl[1] + y_offset, tr[1] + y_offset, 
-               br[1] + y_offset, bl[1] + y_offset, tl[1] + y_offset],
+            x=[tl_mag[0], tr_mag[0], br_mag[0], bl_mag[0], tl_mag[0]],
+            y=[tl_mag[1] + y_offset, tr_mag[1] + y_offset, 
+               br_mag[1] + y_offset, bl_mag[1] + y_offset, tl_mag[1] + y_offset],
             fill='toself',
             fillcolor='rgba(173, 216, 230, 0.5)',
             line=dict(color='steelblue', width=2),
@@ -252,14 +290,15 @@ def create_facade_figure(span_width, floor_height, u_max, frame_type, support_ty
         -extension/2, 0, -extension/2, floor_height,
         f"{floor_height} mm", offset=-300
     )
-    for trace in height_traces:
-        fig.add_trace(trace)
-    dimension_data.append({
-        'x': height_info[0],
-        'y': height_info[1],
-        'text': f"{floor_height} mm",
-        'angle': 90
-    })
+    if height_info:
+        for trace in height_traces:
+            fig.add_trace(trace)
+        dimension_data.append({
+            'x': height_info[0],
+            'y': height_info[1],
+            'text': f"{floor_height} mm",
+            'angle': 90
+        })
     
     # Span width dimension (on top or bottom depending on support type)
     if support_type == 'top_hung':
@@ -271,21 +310,21 @@ def create_facade_figure(span_width, floor_height, u_max, frame_type, support_ty
         0, dim_y, span_width, dim_y,
         f"{span_width} mm", offset=300 if support_type == 'bottom_supported' else -300
     )
-    for trace in span_traces:
-        fig.add_trace(trace)
-    dimension_data.append({
-        'x': span_info[0],
-        'y': span_info[1],
-        'text': f"{span_width} mm",
-        'angle': 0
-    })
+    if span_info:
+        for trace in span_traces:
+            fig.add_trace(trace)
+        dimension_data.append({
+            'x': span_info[0],
+            'y': span_info[1],
+            'text': f"{span_width} mm",
+            'angle': 0
+        })
     
     # Update layout - no axes, no grid, plain background
     fig.update_layout(
         showlegend=False,
         hovermode=False,
         height=400,
-        # width=1200, 
         plot_bgcolor='white',
         paper_bgcolor='white',
         xaxis=dict(
